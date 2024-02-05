@@ -1,0 +1,27 @@
+[package]
+name = "furya_nfts"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Add your dependencies here
+cosmwasm-std = "0.14.0"
+cosmwasm-storage = "0.14.0"
+cosmwasm-schema = "0.14.0"
+cosmwasm-derive = "0.14.0"
+serde = { version = "1", features = ["derive"] }
+schemars = "0.9.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["std"]
+
+[package.metadata.docs.rs]
+features = ["std"]
+
+[profile.dev]
+codegen-units = 1
