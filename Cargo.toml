@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 # Add your dependencies here
-cosmwasm-std = { version = "1.0.0-beta1", features = ["staking", "custom-feature"] }
-cosmwasm-storage = { version = "1.0.0-beta1", features = ["iterator", "custom-feature"] }
-cosmwasm-schema = "1.0.0-beta1"
-cosmwasm-derive = "1.0.0-beta1"
+cosmwasm-std = { version = "1.0.0-beta2", features = ["staking", "custom-feature"] }
+cosmwasm-storage = { version = "1.0.0-beta2", features = ["iterator", "custom-feature"] }
+cosmwasm-schema = "1.0.0-beta2"
+cosmwasm-derive = "1.0.0-beta2"
 serde = { version = "1", features = ["derive"] }
 schemars = "0.8.16"
 
