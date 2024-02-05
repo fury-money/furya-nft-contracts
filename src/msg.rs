@@ -1,8 +1,8 @@
-use cosmwasm_schema::{cosmwasm_serialize, from_binary, Binary};
+use cosmwasm_schema::{to_binary, from_binary, Binary};
 use cosmwasm_std::{
-    Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
+    CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{StdError::GenericErr, StdResult::Err};
+use cosmwasm_std::{to_binary, Addr, Coin};
 
 use crate::helpers::FuryaBunkerMinterContract;
 
@@ -27,18 +27,18 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     UpdateConfig {
         minter: Option<String>,
-        nft_addr: Option<String>,
+        nft_addr: Option<Addr>,
         nft_base_uri: Option<String>,
         nft_max_supply: Option<Uint128>,
         nft_price_amount: Option<Uint128>,
         owner: Option<String>,
     },
     Whitelist {
-        addrs: Vec<String>,
+        addrs: Vec<Addr>,
     },
     StartMint {},
     RequestMint {
-        addr: String,
+        addr: Addr,
     },
     Mint {
         extension: Option<Metadata>,
@@ -127,120 +127,6 @@ pub type TokenRequestsCountResponse = String;
 pub type WhitelistSizeResponse = i32;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct InstantiateMsg {
-    pub mint_max: Option<Uint128>,
-    pub nft_base_uri: String,
-    pub nft_ci: u64,
-    pub nft_max_supply: Uint128,
-    pub nft_name: String,
-    pub nft_price_amount: Uint128,
-    pub nft_symbol: String,
-    pub price_denom: String,
-    pub royalty_payment_address: Option<String>,
-    pub royalty_percentage: Option<u32>,
-    pub whitelist_mint_max: Option<Uint128>,
-    pub whitelist_mint_period: u64,
-    pub whitelist_mint_price_amount: Option<Uint128>,
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub enum ExecuteMsg {
-    UpdateConfig {
-        minter: Option<String>,
-        nft_addr: Option<Addr>,
-        nft_base_uri: Option<String>,
-        nft_max_supply: Option<Uint128>,
-        nft_price_amount: Option<Uint128>,
-        owner: Option<String>,
-    },
-    Whitelist {
-        addrs: Vec<Addr>,
-    },
-    StartMint {},
-    RequestMint {
-        addr: Addr,
-    },
-    Mint {
-        extension: Option<Metadata>,
-        token_id: String,
-        token_uri: Option<String>,
-    },
-    Pause {},
-    Unpause {},
-    WithdrawFund {},
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct Metadata {
-    pub animation_url: Option<String>,
-    pub attributes: Option<Vec<Attribute>>,
-    pub description: Option<String>,
-    pub external_url: Option<String>,
-    pub image: Option<String>,
-    pub name: Option<String>,
-    pub royalty_payment_address: Option<String>,
-    pub royalty_percentage: Option<u32>,
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct Attribute {
-    pub trait_type: String,
-    pub value: String,
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type ConfigResponse = Config;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct Config {
-    pub is_mintable: bool,
-    pub mint_max: Option<Uint128>,
-    pub mint_start_time: i64,
-    pub minter: Addr,
-    pub nft_addr: Addr,
-    pub nft_base_uri: String,
-    pub nft_max_supply: Uint128,
-    pub nft_price_amount: Uint128,
-    pub nft_symbol: String,
-    pub owner: Addr,
-    pub price_denom: String,
-    pub royalty_payment_address: Option<String>,
-    pub royalty_percentage: Option<u32>,
-    pub whitelist_mint_max: Option<Uint128>,
-    pub whitelist_mint_period: u64,
-    pub whitelist_mint_price_amount: Option<Uint128>,
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type CurrentSupplyResponse = String;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type IsWhitelistedResponse = bool;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type TokenRequestByIndexResponse = String;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type TokenRequestsCountResponse = String;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type WhitelistSizeResponse = i32;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub enum QueryMsg {
-    Config {},
-    IsWhitelisted {
-        addr: Addr,
-    },
-    WhitelistSize {},
-    TokenRequestsCount {},
-    CurrentSupply {},
-    TokenRequestByIndex {
-        index: Uint128,
-    },
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct CwTemplateContract(pub Addr);
 
 impl CwTemplateContract {
@@ -249,7 +135,7 @@ impl CwTemplateContract {
     }
 
     pub fn call<T: Into<ExecuteMsg>>(&self, msg: T) -> StdResult<CosmosMsg> {
-        let msg = to_json_binary(&msg.into())?;
+        let msg = to_binary(&msg.into())?;
         Ok(WasmMsg::Execute {
             contract_addr: self.addr().into(),
             msg,
@@ -277,7 +163,9 @@ impl CwTemplateContract {
     }
 
     pub fn token_requests_count(&self, deps: &Deps) -> StdResult<TokenRequestsCountResponse> {
-        let query = QueryMsg::TokenRequestsCount {};
+        let query =
+
+ QueryMsg::TokenRequestsCount {};
         let res: TokenRequestsCountResponse = deps.querier.query(&query.into())?;
         Ok(res)
     }
