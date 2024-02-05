@@ -10,7 +10,7 @@ cosmwasm-storage = { version = "1.0.0-beta1", features = ["iterator", "custom-fe
 cosmwasm-schema = "1.0.0-beta1"
 cosmwasm-derive = "1.0.0-beta1"
 serde = { version = "1", features = ["derive"] }
-schemars = "0.9.0"
+schemars = "0.8.16"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
