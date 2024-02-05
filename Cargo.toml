@@ -3,31 +3,31 @@ name = "furya_minter"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-# cosmwasm dependencies
-cosmwasm_std = "1.5"
-cosmwasm_storage = "1.2"
-cosmwasm_schema = "1.1"
-cw_storage_plus = "0.7"
+# CosmWasm Dependencies
+cosmwasm-std = "1.5"
+cosmwasm-derive = "1.5"
+cosmwasm-schema = "1.0"
 
-# Other dependencies
+# Serialization and Deserialization
 serde = { version = "1", features = ["derive"] }
-schemars = "0.10"
-serde_json = "1"
-thiserror = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+
+# Querier Wrapper
+cw-storage-plus = "1.0"
+
+# Custom Dependencies
+# Add or modify dependencies based on your specific requirements
+# Example:
+# my-custom-dependency = "1.0"
+# other-dependency = "2.0"
+
+# Testing Dependencies
+# Add the necessary testing dependencies if not already present
+# Example:
+# cw-test = "1.5"
+# assert_approx_eq = "1.0"
 
 [lib]
-name = "furya_minter"
-path = "src/lib.rs"
-
-[[bin]]
-name = "furya_minter̉"
-path = "src/contract.rs"
-
-[profile.dev]
-opt-level = 1
-
-[profile.release]
-opt-level = 3
+crate-type = ["cdylib", "rlib"]
