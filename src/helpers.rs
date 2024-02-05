@@ -1,9 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, StdResult, WasmMsg};
-use crate::msg::{ExecuteMsg, GetCountResponse, QueryMsg};
-use cosmwasm_std::{WasmQuery, Querier, QuerierWrapper, CustomQuery};
+use cosmwasm_std::{
+    Addr, Binary, CosmosMsg, Querier, QuerierWrapper, StdResult, Uint128, WasmMsg, WasmQuery,
+};
+use cosmwasm_std::{CustomQuery, to_binary};
+
+use crate::msg::{ExecuteMsg, QueryMsg};
+use crate::msg::{
+    ConfigResponse, CurrentSupplyResponse, IsWhitelistedResponse, TokenRequestByIndexResponse,
+    TokenRequestsCountResponse, WhitelistSizeResponse,
+};
 
 /// FuryaBunkerMinterContract is a wrapper around Addr that provides helpers for working with the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -24,10 +31,9 @@ impl FuryaBunkerMinterContract {
         .into())
     }
 
-    pub fn config<Q, T, CQ>(&self, querier: &Q) -> StdResult<ConfigResponse>
+    pub fn config<Q, CQ>(&self, querier: &Q) -> StdResult<ConfigResponse>
     where
         Q: Querier,
-        T: Into<String>,
         CQ: CustomQuery,
     {
         let msg = QueryMsg::Config {};
@@ -40,10 +46,9 @@ impl FuryaBunkerMinterContract {
         Ok(res)
     }
 
-    pub fn is_whitelisted<Q, T, CQ>(&self, querier: &Q, addr: Addr) -> StdResult<IsWhitelistedResponse>
+    pub fn is_whitelisted<Q, CQ>(&self, querier: &Q, addr: Addr) -> StdResult<IsWhitelistedResponse>
     where
         Q: Querier,
-        T: Into<String>,
         CQ: CustomQuery,
     {
         let msg = QueryMsg::IsWhitelisted { addr };
@@ -183,4 +188,3 @@ impl FuryaBunkerMinterContract {
         self.call(msg)
     }
 }
-
