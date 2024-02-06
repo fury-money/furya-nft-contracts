@@ -25,13 +25,17 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ExecuteMsg {
+    #[serde(rename = "update_config")]
     pub update_config: Option<UpdateConfigMsg>,
     pub whitelist: Option<WhitelistMsg>,
+    #[serde(rename = "start_mint")]
     pub start_mint: Option<StartMintMsg>,
+    #[serde(rename = "request_mint")]
     pub request_mint: Option<RequestMintMsg>,
     pub mint: Option<MintMsg>,
     pub pause: Option<PauseMsg>,
     pub unpause: Option<UnpauseMsg>,
+    #[serde(rename = "withdraw_fund")]
     pub withdraw_fund: Option<WithdrawFundMsg>,
 }
 

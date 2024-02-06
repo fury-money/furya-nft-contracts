@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    Addr, Api, Binary, BlockInfo, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg, to_binary, from_binary,
+    Addr, Api, Binary, BlockInfo, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
+    InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg, to_binary,
 };
 
 use cw2::set_contract_version;
@@ -10,7 +10,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG, Whitelist, STATE};
 
 pub fn init(
-    _deps: &mut Extern<DefaultApi, Storage, Querier>,
+    _deps: &mut Extern<impl Api, impl Storage, impl Querier>,
     _env: Env,
     msg: InstantiateMsg,
 ) -> StdResult<InitResponse> {
@@ -43,7 +43,7 @@ pub fn init(
 }
 
 pub fn execute(
-    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
     env: Env,
     msg: ExecuteMsg,
 ) -> StdResult<CosmosMsg> {
@@ -71,7 +71,7 @@ pub fn execute(
 }
 
 fn try_update_config(
-    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
     env: Env,
     minter: Option<String>,
     nft_addr: Option<Addr>,
@@ -126,7 +126,7 @@ fn try_update_config(
 }
 
 fn try_whitelist(
-    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
     env: Env,
     addrs: Vec<Addr>,
 ) -> StdResult<CosmosMsg> {
@@ -147,7 +147,7 @@ fn try_whitelist(
     }))
 }
 
-fn try_start_mint(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+fn try_start_mint(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
     let config = CONFIG.load(&mut deps.storage)?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
@@ -161,7 +161,7 @@ fn try_start_mint(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> 
 }
 
 fn try_request_mint(
-    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
     env: Env,
     addr: Addr,
 ) -> StdResult<CosmosMsg> {
@@ -183,7 +183,7 @@ fn try_request_mint(
 }
 
 fn try_mint(
-    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
     env: Env,
     extension: Option<Metadata>,
     token_id: String,
@@ -205,7 +205,7 @@ fn try_mint(
     }))
 }
 
-fn try_pause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+fn try_pause(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
     let config = CONFIG.load(&mut deps.storage)?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
@@ -218,7 +218,7 @@ fn try_pause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdRe
     }))
 }
 
-fn try_unpause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+fn try_unpause(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
     let config = CONFIG.load(&mut deps.storage)?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
@@ -231,7 +231,7 @@ fn try_unpause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> Std
     }))
 }
 
-fn try_withdraw_fund(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+fn try_withdraw_fund(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
     let config = CONFIG.load(&mut deps.storage)?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
@@ -245,7 +245,7 @@ fn try_withdraw_fund(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) 
 }
 
 pub fn query(
-    deps: &Extern<DefaultApi, Storage, Querier>,
+    deps: &Extern<impl Api, impl Storage, impl Querier>,
     env: Env,
     msg: QueryMsg,
 ) -> StdResult<Binary> {
@@ -262,37 +262,37 @@ pub fn query(
 }
 
 fn query_config(
-    deps: &Extern<DefaultApi, Storage, Querier>,
+    deps: &Extern<impl Api, impl Storage, impl Querier>,
     _env: Env,
 ) -> StdResult<Config> {
     Ok(CONFIG.load(&deps.storage)?)
 }
 
 fn query_is_whitelisted(
-    deps: &Extern<DefaultApi, Storage, Querier>,
+    deps: &Extern<impl Api, impl Storage, impl Querier>,
     addr: Addr,
 ) -> StdResult<bool> {
     let whitelist = Whitelist::from_storage(&deps.storage);
     whitelist.is_whitelisted(&addr)
 }
 
-fn query_whitelist_size(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<i32> {
+fn query_whitelist_size(deps: &Extern<impl Api, impl Storage, impl Querier>) -> StdResult<i32> {
     let whitelist = Whitelist::from_storage(&deps.storage);
     whitelist.whitelist_size()
 }
 
-fn query_token_requests_count(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<String> {
+fn query_token_requests_count(deps: &Extern<impl Api, impl Storage, impl Querier>) -> StdResult<String> {
     // Replace with the actual implementation for querying token requests count
     Ok(String::from("42"))
 }
 
-fn query_current_supply(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<String> {
+fn query_current_supply(deps: &Extern<impl Api, impl Storage, impl Querier>) -> StdResult<String> {
     // Replace with the actual implementation for querying current supply
     Ok(String::from("100"))
 }
 
 fn query_token_request_by_index(
-    deps: &Extern<DefaultApi, Storage, Querier>,
+    deps: &Extern<impl Api, impl Storage, impl Querier>,
     index: Uint128,
 ) -> StdResult<String> {
     // Replace with the actual implementation for querying token request by index

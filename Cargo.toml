@@ -1,16 +1,17 @@
 [package]
-name = "furya_minter"
+name = "furya_nft_minter"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2018"
 
 [dependencies]
 cosmwasm-std = "1.5.0"
-cosmwasm-storage = "0.14.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_derive = "1.0"
-schemars = "0.9.1"
+schemars = "0.8.16"
+cw2 = "1.1"
+cw_storage_plus = "1.0"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
