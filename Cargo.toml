@@ -2,6 +2,7 @@
 name = "furya_nft_minter"
 version = "0.1.0"
 edition = "2018"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -10,6 +11,7 @@ cosmwasm-schema = "1.0.0"
 serde = { version = "1.0", features = ["derive"] }
 schemars = "0.8.16"
 cw-storage-plus = "0.6.0"
+cw2 = { version = "0.7", features = ["staking"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
