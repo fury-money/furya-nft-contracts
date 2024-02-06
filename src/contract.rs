@@ -1,16 +1,16 @@
 use cosmwasm_std::{
-    Addr, Api, Binary, BlockInfo, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg, to_binary,
+    Addr, Api, Binary, BlockInfo, ChannelResponse, CosmosMsg, Env, Response, StdError, StdResult,
+    Storage, Uint128, WasmMsg, to_binary,
 };
-
 use cw2::set_contract_version;
 
+use crate::msg::Metadata;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, CONFIG, Whitelist, STATE};
+use crate::state::{Config, config, Whitelist, whitelist};
 
 pub fn init(
-    _deps: &mut Extern<impl Api, impl Storage, impl Querier>,
+    _deps: &mut Extern<DefaultApi, Storage, Querier>,
     _env: Env,
     msg: InstantiateMsg,
 ) -> StdResult<InitResponse> {
@@ -34,8 +34,8 @@ pub fn init(
         paused: false,
     };
 
-    CONFIG.save(&mut _deps.storage, &config)?;
-    STATE.save(&mut _deps.storage, &config)?;
+    config(&mut _deps.storage).save(&config)?;
+    state(&mut _deps.storage).save(&config)?;
 
     set_contract_version(&mut _deps.storage, "1.0")?;
 
@@ -43,7 +43,7 @@ pub fn init(
 }
 
 pub fn execute(
-    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
     env: Env,
     msg: ExecuteMsg,
 ) -> StdResult<CosmosMsg> {
@@ -71,7 +71,7 @@ pub fn execute(
 }
 
 fn try_update_config(
-    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
     env: Env,
     minter: Option<String>,
     nft_addr: Option<Addr>,
@@ -80,7 +80,7 @@ fn try_update_config(
     nft_price_amount: Option<Uint128>,
     owner: Option<String>,
 ) -> StdResult<CosmosMsg> {
-    let mut config = CONFIG.load(&mut deps.storage)?;
+    let mut config = config(&mut deps.storage).load()?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
@@ -109,7 +109,7 @@ fn try_update_config(
         config.owner = deps.api.addr_validate(&new_owner)?;
     }
 
-    CONFIG.save(&mut deps.storage, &config)?;
+    config(&mut deps.storage).save(&config)?;
 
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -126,16 +126,16 @@ fn try_update_config(
 }
 
 fn try_whitelist(
-    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
     env: Env,
     addrs: Vec<Addr>,
 ) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
+    let mut config = config(&mut deps.storage).load()?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
 
-    let mut whitelist = Whitelist::from_storage(&mut deps.storage);
+    let mut whitelist = whitelist(&mut deps.storage);
     for addr in addrs {
         whitelist.whitelist(addr)?;
     }
@@ -147,8 +147,8 @@ fn try_whitelist(
     }))
 }
 
-fn try_start_mint(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
+fn try_start_mint(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let mut config = config(&mut deps.storage).load()?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
@@ -161,16 +161,16 @@ fn try_start_mint(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: 
 }
 
 fn try_request_mint(
-    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
     env: Env,
     addr: Addr,
 ) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
+    let config = config(&mut deps.storage).load()?;
     if !config.is_mintable {
         return Err(StdError::generic_err("Minting is not allowed at the moment."));
     }
 
-    let whitelist = Whitelist::from_storage(&mut deps.storage);
+    let whitelist = whitelist(&mut deps.storage);
     if !whitelist.is_whitelisted(&addr)? {
         return Err(StdError::generic_err("Address is not whitelisted for minting."));
     }
@@ -183,16 +183,18 @@ fn try_request_mint(
 }
 
 fn try_mint(
-    deps: &mut Extern<impl Api, impl Storage, impl Querier>,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
     env: Env,
     extension: Option<Metadata>,
     token_id: String,
     token_uri: Option<String>,
 ) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
-    if config.owner != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
+    let mut config = config(&mut deps.storage).load()?;
+    if !config.is_mintable {
+        return Err(StdError::generic_err("Minting is not allowed at the moment."));
     }
+
+    // Perform minting logic here...
 
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -205,11 +207,14 @@ fn try_mint(
     }))
 }
 
-fn try_pause(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
+fn try_pause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let mut config = config(&mut deps.storage).load()?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
+
+    config.paused = true;
+    config(&mut deps.storage).save(&config)?;
 
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -218,11 +223,14 @@ fn try_pause(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) 
     }))
 }
 
-fn try_unpause(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
+fn try_unpause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let mut config = config(&mut deps.storage).load()?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
+
+    config.paused = false;
+    config(&mut deps.storage).save(&config)?;
 
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -231,11 +239,13 @@ fn try_unpause(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env
     }))
 }
 
-fn try_withdraw_fund(deps: &mut Extern<impl Api, impl Storage, impl Querier>, env: Env) -> StdResult<CosmosMsg> {
-    let config = CONFIG.load(&mut deps.storage)?;
+fn try_withdraw_fund(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let config = config(&mut deps.storage).load()?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
+
+    // Perform fund withdrawal logic here...
 
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -245,12 +255,11 @@ fn try_withdraw_fund(deps: &mut Extern<impl Api, impl Storage, impl Querier>, en
 }
 
 pub fn query(
-    deps: &Extern<impl Api, impl Storage, impl Querier>,
-    env: Env,
+    deps: &Extern<DefaultApi, Storage, Querier>,
     msg: QueryMsg,
-) -> StdResult<Binary> {
+) -> StdResult<Response> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::IsWhitelisted { addr } => to_binary(&query_is_whitelisted(deps, addr)?),
         QueryMsg::WhitelistSize {} => to_binary(&query_whitelist_size(deps)?),
         QueryMsg::TokenRequestsCount {} => to_binary(&query_token_requests_count(deps)?),
@@ -261,40 +270,58 @@ pub fn query(
     }
 }
 
-fn query_config(
-    deps: &Extern<impl Api, impl Storage, impl Querier>,
-    _env: Env,
-) -> StdResult<Config> {
-    Ok(CONFIG.load(&deps.storage)?)
+fn query_config(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<ConfigResponse> {
+    let config = config(&deps.storage).load()?;
+    Ok(ConfigResponse {
+        minter: config.minter,
+        nft_addr: config.nft_addr,
+        nft_base_uri: config.nft_base_uri,
+        nft_max_supply: config.nft_max_supply,
+        nft_price_amount: config.nft_price_amount,
+        owner: config.owner,
+        is_mintable: config.is_mintable,
+        mint_max: config.mint_max,
+        mint_start_time: config.mint_start_time,
+        nft_symbol: config.nft_symbol,
+        price_denom: config.price_denom,
+        royalty_payment_address: config.royalty_payment_address,
+        royalty_percentage: config.royalty_percentage,
+        whitelist_mint_max: config.whitelist_mint_max,
+        whitelist_mint_period: config.whitelist_mint_period,
+        whitelist_mint_price_amount: config.whitelist_mint_price_amount,
+        paused: config.paused,
+    })
 }
 
 fn query_is_whitelisted(
-    deps: &Extern<impl Api, impl Storage, impl Querier>,
+    deps: &Extern<DefaultApi, Storage, Querier>,
     addr: Addr,
-) -> StdResult<bool> {
-    let whitelist = Whitelist::from_storage(&deps.storage);
-    whitelist.is_whitelisted(&addr)
+) -> StdResult<IsWhitelistedResponse> {
+    let whitelist = whitelist(&deps.storage);
+    let is_whitelisted = whitelist.is_whitelisted(&addr)?;
+    Ok(IsWhitelistedResponse { is_whitelisted })
 }
 
-fn query_whitelist_size(deps: &Extern<impl Api, impl Storage, impl Querier>) -> StdResult<i32> {
-    let whitelist = Whitelist::from_storage(&deps.storage);
-    whitelist.whitelist_size()
+fn query_whitelist_size(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<WhitelistSizeResponse> {
+    let whitelist = whitelist(&deps.storage);
+    let whitelist_size = whitelist.whitelist_size()?;
+    Ok(WhitelistSizeResponse { whitelist_size })
 }
 
-fn query_token_requests_count(deps: &Extern<impl Api, impl Storage, impl Querier>) -> StdResult<String> {
-    // Replace with the actual implementation for querying token requests count
-    Ok(String::from("42"))
+fn query_token_requests_count(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<TokenRequestsCountResponse> {
+    // Perform token requests count logic here...
+    Ok(TokenRequestsCountResponse { token_requests_count: "TODO".to_string() })
 }
 
-fn query_current_supply(deps: &Extern<impl Api, impl Storage, impl Querier>) -> StdResult<String> {
-    // Replace with the actual implementation for querying current supply
-    Ok(String::from("100"))
+fn query_current_supply(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<CurrentSupplyResponse> {
+    // Perform current supply logic here...
+    Ok(CurrentSupplyResponse { current_supply: "TODO".to_string() })
 }
 
 fn query_token_request_by_index(
-    deps: &Extern<impl Api, impl Storage, impl Querier>,
+    deps: &Extern<DefaultApi, Storage, Querier>,
     index: Uint128,
-) -> StdResult<String> {
-    // Replace with the actual implementation for querying token request by index
-    Ok(format!("TokenRequest at index {}", index))
+) -> StdResult<TokenRequestByIndexResponse> {
+    // Perform token request by index logic here...
+    Ok(TokenRequestByIndexResponse { token_request: "TODO".to_string() })
 }

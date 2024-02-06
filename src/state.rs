@@ -1,5 +1,7 @@
 use cosmwasm_std::{Addr, StdResult, Storage};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
+use cosmwasm_std::{singleton, singleton_read, ReadonlySingleton, Singleton};
+use serde::{Serialize, Deserialize};
+use cosmwasm_std::Uint128; // Add this import
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Config {
@@ -22,36 +24,36 @@ pub struct Config {
     pub paused: bool,
 }
 
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+pub fn config<S: Storage + ?Sized>(storage: &mut S) -> Singleton<S, Config> {
     singleton(storage, b"config")
 }
 
-pub fn read_config<S: Storage>(storage: &S) -> ReadonlySingleton<S, Config> {
+pub fn read_config<S: Storage + ?Sized>(storage: &S) -> ReadonlySingleton<S, Config> {
     singleton_read(storage, b"config")
 }
 
-pub fn state<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+pub fn state<S: Storage + ?Sized>(storage: &mut S) -> Singleton<S, Config> {
     singleton(storage, b"state")
 }
 
-pub fn read_state<S: Storage>(storage: &S) -> ReadonlySingleton<S, Config> {
+pub fn read_state<S: Storage + ?Sized>(storage: &S) -> ReadonlySingleton<S, Config> {
     singleton_read(storage, b"state")
 }
 
 impl Config {
-    pub fn save(&self, storage: &mut dyn Storage) -> StdResult<()> {
+    pub fn save<S: Storage + ?Sized>(&self, storage: &mut S) -> StdResult<()> {
         config(storage).save(self)
     }
 
-    pub fn load(storage: &dyn Storage) -> StdResult<Config> {
+    pub fn load<S: Storage + ?Sized>(storage: &S) -> StdResult<Config> {
         read_config(storage).load()
     }
 
-    pub fn state_save(&self, storage: &mut dyn Storage) -> StdResult<()> {
+    pub fn state_save<S: Storage + ?Sized>(&self, storage: &mut S) -> StdResult<()> {
         state(storage).save(self)
     }
 
-    pub fn state_load(storage: &dyn Storage) -> StdResult<Config> {
+    pub fn state_load<S: Storage + ?Sized>(storage: &S) -> StdResult<Config> {
         read_state(storage).load()
     }
 }

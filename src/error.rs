@@ -1,8 +1,7 @@
-use cosmwasm_std::StdError;
-use thiserror::Error;
+use cosmwasm_std::{StdError, error::Error};
 
 #[derive(Error, Debug)]
-pub enum FuryaBunkerMinterError {
+pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 

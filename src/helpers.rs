@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::msg::Metadata;
 
 use cosmwasm_std::{
     Addr, Binary, CosmosMsg, Querier, QuerierWrapper, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -50,7 +51,7 @@ impl FuryaBunkerMinterContract {
         Q: Querier,
         CQ: CustomQuery,
     {
-        let msg = QueryMsg::IsWhitelisted { addr };
+        let msg = QueryMsg::IsWhitelisted { addr: addr.to_string() };
         let query = WasmQuery::Smart {
             contract_addr: self.addr().into(),
             msg: to_binary(&msg)?,
