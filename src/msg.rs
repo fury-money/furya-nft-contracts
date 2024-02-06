@@ -67,37 +67,81 @@ pub struct Attribute {
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct ConfigResponse {
-    pub is_mintable: bool,
-    pub mint_max: Option<Uint128>,
-    pub mint_start_time: i64,
-    pub minter: String,
-    pub nft_addr: String,
+    pub minter: Addr,
+    pub nft_addr: Addr,
     pub nft_base_uri: String,
     pub nft_max_supply: Uint128,
     pub nft_price_amount: Uint128,
+    pub owner: Addr,
+    pub is_mintable: bool,
+    pub mint_max: u32,
+    pub mint_start_time: u64,
     pub nft_symbol: String,
-    pub owner: String,
     pub price_denom: String,
-    pub royalty_payment_address: Option<String>,
-    pub royalty_percentage: Option<u32>,
-    pub whitelist_mint_max: Option<Uint128>,
+    pub royalty_payment_address: String,
+    pub royalty_percentage: Uint128,
+    pub whitelist_mint_max: u32,
     pub whitelist_mint_period: u64,
-    pub whitelist_mint_price_amount: Option<Uint128>,
+    pub whitelist_mint_price_amount: Uint128,
+    pub paused: bool,
 }
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type CurrentSupplyResponse = String;
+pub struct IsWhitelistedResponse {
+    pub is_whitelisted: bool,
+}
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type IsWhitelistedResponse = bool;
+pub struct WhitelistSizeResponse {
+    pub whitelist_size: u32,
+}
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type TokenRequestByIndexResponse = String;
+pub struct TokenRequestsCountResponse {
+    pub token_requests_count: String,
+}
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type TokenRequestsCountResponse = String;
+pub struct CurrentSupplyResponse {
+    pub current_supply: String,
+}
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub type WhitelistSizeResponse = i32;
+pub struct TokenRequestByIndexResponse {
+    pub token_request: String,
+}
+
+pub fn init(
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
+    msg: InstantiateMsg,
+) -> StdResult<InitResponse> {
+    let config = Config {
+        minter: deps.api.addr_validate(&msg.minter)?,
+        nft_addr: msg.nft_addr,
+        nft_base_uri: msg.nft_base_uri,
+        nft_max_supply: msg.nft_max_supply,
+        nft_price_amount: msg.nft_price_amount,
+        owner: deps.api.addr_validate(&msg.owner)?,
+        is_mintable: msg.is_mintable,
+        mint_max: msg.mint_max,
+        mint_start_time: msg.mint_start_time,
+        nft_symbol: msg.nft_symbol,
+        price_denom: msg.price_denom,
+        royalty_payment_address: msg.royalty_payment_address,
+        royalty_percentage: msg.royalty_percentage,
+        whitelist_mint_max: msg.whitelist_mint_max,
+        whitelist_mint_period: msg.whitelist_mint_period,
+        whitelist_mint_price_amount: msg.whitelist_mint_price_amount,
+        paused: false,
+    };
+
+    config(&mut deps.storage).save(&config)?;
+    state(&mut deps.storage).save(&config)?;
+
+    set_contract_version(&mut deps.storage, "1.0")?;
+
+    Ok(InitResponse::default())
+}
 
 // Add your tests or other helper functions here if needed
