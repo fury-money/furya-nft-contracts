@@ -1,7 +1,11 @@
-use cosmwasm_schema::{to_binary, from_binary, Binary};
 use cosmwasm_std::{
-    Addr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    Addr, CosmosMsg, Deps, DepsMut, Env, Extern, MessageInfo, Response, StdError, StdResult, Storage,
+    Querier, InitResponse,
 };
+use cosmwasm_schema::{to_binary, from_binary, Binary};
+use serde::{Deserialize, Serialize};
+use schemars::JsonSchema;
+use cw_storage_plus::{Item, Map};
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct InstantiateMsg {
@@ -66,7 +70,7 @@ pub struct Attribute {
 }
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct ConfigResponse {
+pub struct Config {
     pub minter: Addr,
     pub nft_addr: Addr,
     pub nft_base_uri: String,
@@ -86,29 +90,20 @@ pub struct ConfigResponse {
     pub paused: bool,
 }
 
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct IsWhitelistedResponse {
-    pub is_whitelisted: bool,
+pub const CONFIG_KEY: &[u8] = b"config";
+pub const STATE_KEY: &[u8] = b"state";
+pub const WHITELIST_KEY: &[u8] = b"whitelist";
+
+pub fn config(storage: &mut dyn Storage) -> Item<Config> {
+    Item::new(storage, CONFIG_KEY)
 }
 
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct WhitelistSizeResponse {
-    pub whitelist_size: u32,
+pub fn state(storage: &mut dyn Storage) -> Item<Config> {
+    Item::new(storage, STATE_KEY)
 }
 
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct TokenRequestsCountResponse {
-    pub token_requests_count: String,
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct CurrentSupplyResponse {
-    pub current_supply: String,
-}
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct TokenRequestByIndexResponse {
-    pub token_request: String,
+pub fn whitelist(storage: &mut dyn Storage) -> Map<Whitelist> {
+    Map::new(storage, WHITELIST_KEY)
 }
 
 pub fn init(
@@ -136,12 +131,7 @@ pub fn init(
         paused: false,
     };
 
-    config(&mut deps.storage).save(&config)?;
-    state(&mut deps.storage).save(&config)?;
-
-    set_contract_version(&mut deps.storage, "1.0")?;
+    config(deps.storage()).save(&config)?;
 
     Ok(InitResponse::default())
 }
-
-// Add your tests or other helper functions here if needed
