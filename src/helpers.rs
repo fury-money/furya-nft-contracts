@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
     Addr, Binary, CosmosMsg, Querier, QuerierWrapper, StdResult, Uint128, WasmMsg, WasmQuery,
+    CustomQuery, to_binary,
 };
-use cosmwasm_std::{CustomQuery, to_binary};
 
 use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::msg::{
@@ -12,7 +12,6 @@ use crate::msg::{
     TokenRequestsCountResponse, WhitelistSizeResponse,
 };
 
-/// FuryaBunkerMinterContract is a wrapper around Addr that provides helpers for working with the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct FuryaBunkerMinterContract(pub Addr);
 

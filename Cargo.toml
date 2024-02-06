@@ -4,30 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# CosmWasm Dependencies
-cosmwasm-std = "1.5"
-cosmwasm-derive = "1.5"
-cosmwasm-schema = "1.0"
-
-# Serialization and Deserialization
-serde = { version = "1", features = ["derive"] }
+cosmwasm_std = "1.5.0"
+cosmwasm_storage = "0.14.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
-serde_json = "1.0"
-
-# Querier Wrapper
-cw-storage-plus = "1.0"
-
-# Custom Dependencies
-# Add or modify dependencies based on your specific requirements
-# Example:
-# my-custom-dependency = "1.0"
-# other-dependency = "2.0"
-
-# Testing Dependencies
-# Add the necessary testing dependencies if not already present
-# Example:
-# cw-test = "1.5"
-# assert_approx_eq = "1.0"
+schemars = "0.9.1"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

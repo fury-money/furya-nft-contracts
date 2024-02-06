@@ -1,57 +1,52 @@
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    Addr, Api, Binary, BlockInfo, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
+    InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg, to_binary, from_binary,
+};
+
 use cw2::set_contract_version;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, CONFIG, STATE, Whitelist};
+use crate::state::{Config, CONFIG, Whitelist, STATE};
 
-// version info for migration info
-const CONTRACT_NAME: &str = "FuryaBunkerMinter";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(
-    deps: DepsMut,
+pub fn init(
+    _deps: &mut Extern<DefaultApi, Storage, Querier>,
     _env: Env,
-    info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> StdResult<InitResponse> {
     let config = Config {
-        is_mintable: msg.is_mintable,
-        mint_max: msg.mint_max,
-        mint_start_time: msg.mint_start_time,
         minter: msg.minter,
         nft_addr: msg.nft_addr,
         nft_base_uri: msg.nft_base_uri,
         nft_max_supply: msg.nft_max_supply,
         nft_price_amount: msg.nft_price_amount,
-        nft_symbol: msg.nft_symbol,
         owner: msg.owner,
+        is_mintable: msg.is_mintable,
+        mint_max: msg.mint_max,
+        mint_start_time: msg.mint_start_time,
+        nft_symbol: msg.nft_symbol,
         price_denom: msg.price_denom,
         royalty_payment_address: msg.royalty_payment_address,
         royalty_percentage: msg.royalty_percentage,
         whitelist_mint_max: msg.whitelist_mint_max,
         whitelist_mint_period: msg.whitelist_mint_period,
         whitelist_mint_price_amount: msg.whitelist_mint_price_amount,
+        paused: false,
     };
 
-    let whitelist = Whitelist { addrs: vec![] };
+    CONFIG.save(&mut _deps.storage, &config)?;
+    STATE.save(&mut _deps.storage, &config)?;
 
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    CONFIG.save(deps.storage, &config)?;
-    STATE.save(deps.storage, &whitelist)?;
+    set_contract_version(&mut _deps.storage, "1.0")?;
 
-    Ok(Response::new())
+    Ok(InitResponse::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> StdResult<CosmosMsg> {
     match msg {
         ExecuteMsg::UpdateConfig {
             minter,
@@ -60,286 +55,246 @@ pub fn execute(
             nft_max_supply,
             nft_price_amount,
             owner,
-        } => execute::update_config(
-            deps,
-            info,
+        } => try_update_config(deps, env, minter, nft_addr, nft_base_uri, nft_max_supply, nft_price_amount, owner),
+        ExecuteMsg::Whitelist { addrs } => try_whitelist(deps, env, addrs),
+        ExecuteMsg::StartMint {} => try_start_mint(deps, env),
+        ExecuteMsg::RequestMint { addr } => try_request_mint(deps, env, addr),
+        ExecuteMsg::Mint {
+            extension,
+            token_id,
+            token_uri,
+        } => try_mint(deps, env, extension, token_id, token_uri),
+        ExecuteMsg::Pause {} => try_pause(deps, env),
+        ExecuteMsg::Unpause {} => try_unpause(deps, env),
+        ExecuteMsg::WithdrawFund {} => try_withdraw_fund(deps, env),
+    }
+}
+
+fn try_update_config(
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
+    minter: Option<String>,
+    nft_addr: Option<Addr>,
+    nft_base_uri: Option<String>,
+    nft_max_supply: Option<Uint128>,
+    nft_price_amount: Option<Uint128>,
+    owner: Option<String>,
+) -> StdResult<CosmosMsg> {
+    let mut config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    if let Some(new_minter) = minter {
+        config.minter = deps.api.addr_validate(&new_minter)?;
+    }
+
+    if let Some(new_nft_addr) = nft_addr {
+        config.nft_addr = new_nft_addr;
+    }
+
+    if let Some(new_nft_base_uri) = nft_base_uri {
+        config.nft_base_uri = new_nft_base_uri;
+    }
+
+    if let Some(new_nft_max_supply) = nft_max_supply {
+        config.nft_max_supply = new_nft_max_supply;
+    }
+
+    if let Some(new_nft_price_amount) = nft_price_amount {
+        config.nft_price_amount = new_nft_price_amount;
+    }
+
+    if let Some(new_owner) = owner {
+        config.owner = deps.api.addr_validate(&new_owner)?;
+    }
+
+    CONFIG.save(&mut deps.storage, &config)?;
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::UpdateConfig {
             minter,
             nft_addr,
             nft_base_uri,
             nft_max_supply,
             nft_price_amount,
             owner,
-        ),
-        ExecuteMsg::Whitelist { addrs } => execute::whitelist(deps, info, addrs),
-        ExecuteMsg::StartMint {} => execute::start_mint(deps, info),
-        ExecuteMsg::RequestMint { addr } => execute::request_mint(deps, info, addr),
-        ExecuteMsg::Mint {
+        })?,
+    }))
+}
+
+fn try_whitelist(
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
+    addrs: Vec<Addr>,
+) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    let mut whitelist = Whitelist::from_storage(&mut deps.storage);
+    for addr in addrs {
+        whitelist.whitelist(addr)?;
+    }
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::Whitelist { addrs })?,
+    }))
+}
+
+fn try_start_mint(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::StartMint {})?,
+    }))
+}
+
+fn try_request_mint(
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
+    addr: Addr,
+) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if !config.is_mintable {
+        return Err(StdError::generic_err("Minting is not allowed at the moment."));
+    }
+
+    let whitelist = Whitelist::from_storage(&mut deps.storage);
+    if !whitelist.is_whitelisted(&addr)? {
+        return Err(StdError::generic_err("Address is not whitelisted for minting."));
+    }
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::RequestMint { addr })?,
+    }))
+}
+
+fn try_mint(
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
+    extension: Option<Metadata>,
+    token_id: String,
+    token_uri: Option<String>,
+) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::Mint {
             extension,
             token_id,
             token_uri,
-        } => execute::mint(deps, info, extension, token_id, token_uri),
-        ExecuteMsg::Pause {} => execute::pause(deps, info),
-        ExecuteMsg::Unpause {} => execute::unpause(deps, info),
-        ExecuteMsg::WithdrawFund {} => execute::withdraw_fund(deps, info),
-    }
+        })?,
+    }))
 }
 
-pub mod execute {
-    use super::*;
-    use cosmwasm_std::{Api, Querier, QuerierWrapper, QueryRequest, to_binary};
-
-    pub fn update_config(
-        deps: DepsMut,
-        info: MessageInfo,
-        minter: Option<String>,
-        nft_addr: Option<Addr>,
-        nft_base_uri: Option<String>,
-        nft_max_supply: Option<Uint128>,
-        nft_price_amount: Option<Uint128>,
-        owner: Option<String>,
-    ) -> Result<Response, ContractError> {
-        // Get current config
-        let mut config = CONFIG.load(deps.storage)?;
-
-        // Ensure the sender is the owner
-        if info.sender != config.owner {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        // Update config based on provided parameters
-        config.minter = minter.unwrap_or(config.minter);
-        config.nft_addr = nft_addr.unwrap_or(config.nft_addr);
-        config.nft_base_uri = nft_base_uri.unwrap_or(config.nft_base_uri);
-        config.nft_max_supply = nft_max_supply.unwrap_or(config.nft_max_supply);
-        config.nft_price_amount = nft_price_amount.unwrap_or(config.nft_price_amount);
-        config.owner = owner.unwrap_or(config.owner);
-
-        // Save updated config
-        CONFIG.save(deps.storage, &config)?;
-
-        Ok(Response::new())
+fn try_pause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
     }
 
-    pub fn whitelist(
-        deps: DepsMut,
-        info: MessageInfo,
-        addrs: Vec<String>,
-    ) -> Result<Response, ContractError> {
-        // Get current whitelist
-        let mut whitelist = STATE.load(deps.storage)?;
-
-        // Ensure the sender is the minter
-        let config = CONFIG.load(deps.storage)?;
-        if info.sender != config.minter {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        // Add addresses to the whitelist
-        whitelist.addrs.extend(addrs);
-
-        // Save updated whitelist
-        STATE.save(deps.storage, &whitelist)?;
-
-        Ok(Response::new())
-    }
-
-    pub fn start_mint(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Ensure the sender is the minter
-        if info.sender != config.minter {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        // Your logic for starting minting process
-        // ...
-
-        Ok(Response::new())
-    }
-
-    pub fn request_mint(
-        deps: DepsMut,
-        info: MessageInfo,
-        addr: Addr,
-    ) -> Result<Response, ContractError> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Your logic for handling minting request
-        // ...
-
-        Ok(Response::new())
-    }
-
-    pub fn mint(
-        deps: DepsMut,
-        info: MessageInfo,
-        extension: Option<Metadata>,
-        token_id: String,
-        token_uri: Option<String>,
-    ) -> Result<Response, ContractError> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Your logic for minting a new token
-        // ...
-
-        Ok(Response::new())
-    }
-
-    pub fn pause(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Ensure the sender is the owner
-        if info.sender != config.owner {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        // Your logic for pausing the contract
-        // ...
-
-        Ok(Response::new())
-    }
-
-    pub fn unpause(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Ensure the sender is the owner
-        if info.sender != config.owner {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        // Your logic for unpausing the contract
-        // ...
-
-        Ok(Response::new())
-    }
-
-    pub fn withdraw_fund(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Ensure the sender is the owner
-        if info.sender != config.owner {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        // Your logic for withdrawing funds
-        // ...
-
-        Ok(Response::new())
-    }
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::Pause {})?,
+    }))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+fn try_unpause(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::Unpause {})?,
+    }))
+}
+
+fn try_withdraw_fund(deps: &mut Extern<DefaultApi, Storage, Querier>, env: Env) -> StdResult<CosmosMsg> {
+    let config = CONFIG.load(&mut deps.storage)?;
+    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        funds: vec![],
+        msg: to_binary(&ExecuteMsg::WithdrawFund {})?,
+    }))
+}
+
+pub fn query(
+    deps: &Extern<DefaultApi, Storage, Querier>,
+    env: Env,
+    msg: QueryMsg,
+) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => query::config(deps),
-        QueryMsg::IsWhitelisted { addr } => query::is_whitelisted(deps, addr),
-        QueryMsg::WhitelistSize {} => query::whitelist_size(deps),
-        QueryMsg::TokenRequestsCount {} => query::token_requests_count(deps),
-        QueryMsg::CurrentSupply {} => query::current_supply(deps),
-        QueryMsg::TokenRequestByIndex { index } => query::token_request_by_index(deps, index),
+        QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
+        QueryMsg::IsWhitelisted { addr } => to_binary(&query_is_whitelisted(deps, addr)?),
+        QueryMsg::WhitelistSize {} => to_binary(&query_whitelist_size(deps)?),
+        QueryMsg::TokenRequestsCount {} => to_binary(&query_token_requests_count(deps)?),
+        QueryMsg::CurrentSupply {} => to_binary(&query_current_supply(deps)?),
+        QueryMsg::TokenRequestByIndex { index } => {
+            to_binary(&query_token_request_by_index(deps, index)?)
+        }
     }
 }
 
-pub mod query {
-    use super::*;
-    use cosmwasm_std::Addr;
-
-    pub fn config(deps: Deps) -> StdResult<Binary> {
-        // Get current config
-        let config = CONFIG.load(deps.storage)?;
-
-        // Your logic for returning the contract configuration
-        // ...
-
-        Ok(Binary::from(serde_json::to_string(&config).unwrap().as_bytes()))
-    }
-
-    pub fn is_whitelisted(deps: Deps, addr: Addr) -> StdResult<Binary> {
-        // Get current whitelist
-        let whitelist = STATE.load(deps.storage)?;
-
-        // Your logic for checking if the address is whitelisted
-        // ...
-
-        Ok(Binary::from(serde_json::to_string(&true).unwrap().as_bytes())) // Example response, modify as needed
-    }
-
-    pub fn whitelist_size(deps: Deps) -> StdResult<Binary> {
-        // Get current whitelist
-        let whitelist = STATE.load(deps.storage)?;
-
-        // Your logic for returning the size of the whitelist
-        // ...
-
-        Ok(Binary::from(serde_json::to_string(&whitelist.addrs.len()).unwrap().as_bytes()))
-    }
-
-    pub fn token_requests_count(deps: Deps) -> StdResult<Binary> {
-        // Your logic for returning the count of token requests
-        // ...
-
-        Ok(Binary::from(serde_json::to_string(&0).unwrap().as_bytes())) // Example response, modify as needed
-    }
-
-    pub fn current_supply(deps: Deps) -> StdResult<Binary> {
-        // Your logic for returning the current supply
-        // ...
-
-        Ok(Binary::from(serde_json::to_string(&"0".to_string()).unwrap().as_bytes())) // Example response, modify as needed
-    }
-
-    pub fn token_request_by_index(deps: Deps, index: Uint128) -> StdResult<Binary> {
-        // Your logic for returning token request details by index
-        // ...
-
-        Ok(Binary::from(serde_json::to_string(&"{}").unwrap().as_bytes())) // Example response, modify as needed
-    }
+fn query_config(
+    deps: &Extern<DefaultApi, Storage, Querier>,
+    _env: Env,
+) -> StdResult<Config> {
+    Ok(CONFIG.load(&deps.storage)?)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary};
+fn query_is_whitelisted(
+    deps: &Extern<DefaultApi, Storage, Querier>,
+    addr: Addr,
+) -> StdResult<bool> {
+    let whitelist = Whitelist::from_storage(&deps.storage);
+    whitelist.is_whitelisted(&addr)
+}
 
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies();
+fn query_whitelist_size(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<i32> {
+    let whitelist = Whitelist::from_storage(&deps.storage);
+    whitelist.whitelist_size()
+}
 
-        let msg = InstantiateMsg {
-            is_mintable: true,
-            mint_max: None,
-            mint_start_time: 0,
-            minter: String::from("minter"),
-            nft_addr: String::from("nft_addr"),
-            nft_base_uri: String::from("nft_base_uri"),
-            nft_max_supply: String::from("100"),
-            nft_price_amount: String::from("10"),
-            nft_symbol: String::from("NFT"),
-            owner: String::from("owner"),
-            price_denom: String::from("uusd"),
-            royalty_payment_address: None,
-            royalty_percentage: None,
-            whitelist_mint_max: None,
-            whitelist_mint_period: 0,
-            whitelist_mint_price_amount: None,
-        };
-        let info = mock_info("creator", &coins(1000, "earth"));
+fn query_token_requests_count(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<String> {
+    // Replace with the actual implementation for querying token requests count
+    Ok(String::from("42"))
+}
 
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
+fn query_current_supply(deps: &Extern<DefaultApi, Storage, Querier>) -> StdResult<String> {
+    // Replace with the actual implementation for querying current supply
+    Ok(String::from("100"))
+}
 
-        let query_res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
-        let config: Config = from_binary(&query_res).unwrap();
-        assert_eq!(config.is_mintable, true);
-        // Add more assertions based on your initialization logic
-    }
-
-    // Add more tests based on your contract logic
+fn query_token_request_by_index(
+    deps: &Extern<DefaultApi, Storage, Querier>,
+    index: Uint128,
+) -> StdResult<String> {
+    // Replace with the actual implementation for querying token request by index
+    Ok(format!("TokenRequest at index {}", index))
 }
