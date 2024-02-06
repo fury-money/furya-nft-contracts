@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, StdResult, Storage};
-use cosmwasm_std::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use serde::{Serialize, Deserialize};
-use cosmwasm_std::Uint128; // Add this import
+use cosmwasm_std::Uint128;
+use cosmwasm_std::storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Config {

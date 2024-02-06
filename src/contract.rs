@@ -1,26 +1,25 @@
 use cosmwasm_std::{
     Addr, Api, Binary, BlockInfo, ChannelResponse, CosmosMsg, Env, Response, StdError, StdResult,
-    Storage, Uint128, WasmMsg, to_binary,
+    Storage, Uint128, WasmMsg, to_binary, Querier
 };
 use cw2::set_contract_version;
-
 use crate::msg::Metadata;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, config, Whitelist, whitelist};
 
 pub fn init(
-    _deps: &mut Extern<DefaultApi, Storage, Querier>,
-    _env: Env,
+    deps: &mut Extern<DefaultApi, Storage, Querier>,
+    env: Env,
     msg: InstantiateMsg,
 ) -> StdResult<InitResponse> {
     let config = Config {
-        minter: msg.minter,
+        minter: deps.api.addr_validate(&msg.minter)?,
         nft_addr: msg.nft_addr,
         nft_base_uri: msg.nft_base_uri,
         nft_max_supply: msg.nft_max_supply,
         nft_price_amount: msg.nft_price_amount,
-        owner: msg.owner,
+        owner: deps.api.addr_validate(&msg.owner)?,
         is_mintable: msg.is_mintable,
         mint_max: msg.mint_max,
         mint_start_time: msg.mint_start_time,
@@ -34,10 +33,10 @@ pub fn init(
         paused: false,
     };
 
-    config(&mut _deps.storage).save(&config)?;
-    state(&mut _deps.storage).save(&config)?;
+    config(&mut deps.storage).save(&config)?;
+    state(&mut deps.storage).save(&config)?;
 
-    set_contract_version(&mut _deps.storage, "1.0")?;
+    set_contract_version(&mut deps.storage, "1.0")?;
 
     Ok(InitResponse::default())
 }
